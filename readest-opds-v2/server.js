@@ -2,7 +2,7 @@ const http = require("node:http");
 const { createHash, timingSafeEqual } = require("node:crypto");
 const { Readable } = require("node:stream");
 
-const DEFAULT_BASE = "https://z-lib.do";
+const DEFAULT_BASE = "https://z-lib.gd";
 const MAX_RESULTS = 40;
 const challengeCookies = new Map();
 
