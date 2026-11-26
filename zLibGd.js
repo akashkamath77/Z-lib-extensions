@@ -167,7 +167,7 @@ class ZLibGdPlugin {
         this.id = 'zLibGd';
 this.name = 'Z-Library GD';
 this.site = 'https://z-lib.gd';
-this.version = '0.2.9';
+this.version = '0.3.0';
 this.icon = 'src/en/zLibGd/icon.png';
 this.imageRequestInit = {
     headers: { Referer: 'https://reader.z-lib.gd/' }
@@ -572,31 +572,44 @@ this.readerOrigins = [
         const name = $('h1.book-title').first().text().trim();
         if (!name)
             throw new Error('Book details were not found.');
-        const session = await this.session(path, html);
+        // Keep book metadata independent from the reader API. The reader service
+        // is initialized only when the user opens the book.
         const cover = $('.details-book-cover-container z-cover img[src], .details-book-cover-container img[src]').first().attr('src');
+        const hasReader = $('a.reader-link').length > 0;
         return {
             name, path, author: $('.authors').first().text().trim(),
             summary: $('#bookDescriptionBox').text().trim(),
             genres: $('.property_categories .property_value').text().trim(),
             ...(cover ? { cover: this.absoluteUrl(cover, this.site) } : {}),
-            chapters: session.toc.map((entry, index) => ({
-                name: entry.name, chapterNumber: index + 1,
-                // Store stable book and resource identities, never expiring credentials.
-                path: 'zlib-chapter:' + encodeURIComponent(JSON.stringify({ book: path, source: entry.url })),
-            })),
+            chapters: hasReader ? [{
+                name: 'Open book (EPUB)',
+                chapterNumber: 1,
+                path: 'zlib-open:' + encodeURIComponent(path),
+            }] : [],
         };
     }
     async parseChapter(chapterPath) {
-        if (!chapterPath.startsWith('zlib-chapter:'))
+        let path;
+        let session;
+        let entry;
+        if (chapterPath.startsWith('zlib-open:')) {
+            path = this.bookPath(decodeURIComponent(chapterPath.slice(10)));
+            session = await this.session(path);
+            entry = session.toc[0];
+        }
+        else if (chapterPath.startsWith('zlib-chapter:')) {
+            const ref = JSON.parse(decodeURIComponent(chapterPath.slice(13)));
+            path = this.bookPath(ref.book);
+            session = await this.session(path);
+            // Only request resources in this book's server-provided reading order.
+            entry = session.toc.find(item => item.url === ref.source)
+                || session.toc.find(item => new URL(item.url).pathname === new URL(ref.source).pathname);
+        }
+        else {
             throw new Error('Invalid chapter reference.');
-        const ref = JSON.parse(decodeURIComponent(chapterPath.slice(13)));
-        const path = this.bookPath(ref.book);
-        const session = await this.session(path);
-        // Only request resources in this book's server-provided reading order.
-        const entry = session.toc.find(item => item.url === ref.source)
-            || session.toc.find(item => new URL(item.url).pathname === new URL(ref.source).pathname);
+        }
         if (!entry)
-            throw new Error('The book layout changed; refresh its chapter list.');
+            throw new Error('The reader did not provide a readable EPUB chapter.');
         const $ = (0, cheerio_1.load)(await this.xml(session, entry.url), { xmlMode: true });
         $('script, style, link, iframe, object, embed, form').remove();
         $('*').each((_, el) => {
