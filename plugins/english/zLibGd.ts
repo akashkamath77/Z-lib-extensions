@@ -389,7 +389,7 @@ class ZLibGdPlugin {
       const href = ($(el).attr('href') || '').trim();
       // EPUB-relative links (such as footnotes) are not website URLs.
       if (/^(?:javascript|data):/i.test(href) ||
-          !/^(?:https?:\\/\\/|mailto:|tel:|#)/i.test(href)) {
+          !/^(?:https?:\/\/|mailto:|tel:|#)/i.test(href)) {
         $(el).removeAttr('href');
       }
     });
