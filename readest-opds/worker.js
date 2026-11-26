@@ -167,7 +167,7 @@ export default {
     const xmlHeaders = { "Content-Type": "application/atom+xml; charset=utf-8", "Cache-Control": "no-store" };
 
     if (u.pathname === "/opds" || u.pathname === "/") {
-      const searchLink = \`<link rel="search" href="/opds/search.xml?key=\${encodeURIComponent(key)}" type="application/opensearchdescription+xml" title="Search Z-Library"/>\`;
+      const searchLink = `<link rel="search" href="/opds/search.xml?key=${encodeURIComponent(key)}" type="application/opensearchdescription+xml" title="Search Z-Library"/>`;
       return new Response(feed("Z-Library", u.origin + "/opds" + keySuffix, [], key, searchLink), { headers: xmlHeaders });
     }
 
@@ -205,7 +205,7 @@ export default {
       if (book.download) {
         const mediaType = mimeForFormat(book.format);
         const formatLabel = book.format ? book.format.toUpperCase() : "Unknown format";
-        links.push(\`<link rel="http://opds-spec.org/acquisition" href="/opds/download?path=\${encodeURIComponent(book.download)}&amp;key=\${encodeURIComponent(key)}" type="\${mediaType}" title="Download \${formatLabel}"/>\`);
+        links.push(`<link rel="http://opds-spec.org/acquisition" href="/opds/download?path=${encodeURIComponent(book.download)}&amp;key=${encodeURIComponent(key)}" type="${mediaType}" title="Download ${formatLabel}"/>`);
       }
       const body = `<?xml version="1.0" encoding="UTF-8"?>
 <feed xmlns="http://www.w3.org/2005/Atom" xmlns:opds="http://opds-spec.org/2010/catalog">
