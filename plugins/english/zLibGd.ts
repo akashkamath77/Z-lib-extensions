@@ -19,7 +19,7 @@ class ZLibGdPlugin {
   id = 'zLibGd';
   name = 'Z-Library GD (experimental)';
   site = 'https://z-lib.do';
-  version = '0.2.6';
+  version = '0.2.5';
   icon = 'src/en/zLibGd/icon.png';
   imageRequestInit = { headers: { Referer: 'https://reader.z-lib.do/' } };
   private readerOrigin = 'https://reader.z-lib.do';
@@ -386,12 +386,8 @@ class ZLibGdPlugin {
       $(img).attr(attr, await this.resource(session, source));
     }
     $('a[href]').each((_, el) => {
-      const href = ($(el).attr('href') || '').trim();
-      // EPUB-relative links (such as footnotes) are not website URLs.
-      if (/^(?:javascript|data):/i.test(href) ||
-          !/^(?:https?:\/\/|mailto:|tel:|#)/i.test(href)) {
-        $(el).removeAttr('href');
-      }
+      const href = $(el).attr('href') || '';
+      if (/^\s*(?:javascript|data):/i.test(href)) $(el).removeAttr('href');
     });
     return $('body').html() || $.root().html() || '';
   }
