@@ -12,7 +12,7 @@ function decode(value = "") {
     .replace(/&#(\d+);/g, (_, n) => String.fromCodePoint(Number(n)));
 }
 function attr(source, name) {
-  const match = source.match(new RegExp("(?:^|\s)" + name + "\s*=\s*(['\\"])(.*?)\\1", "i"));
+  const match = source.match(new RegExp("(?:^|\\s)" + name + "\\s*=\\s*(['\"])(.*?)\\1", "i"));
   return match ? decode(match[2]) : "";
 }
 function cleanText(source = "") {
