@@ -13,22 +13,22 @@ A separate OPDS 1.2 bridge for Readest. It does not replace the LNReader plugin 
 
 **Important:** the reference LNReader extension also implements a separate reader API flow. This OPDS bridge does not yet reconstruct an EPUB from that reader API. If a book page has no direct `/dl/` acquisition link, the catalogue can show its details but cannot download that edition. Z-Library can change its domains, markup, anti-bot checks, and download rules at any time. Use only books you are authorized to access.
 
-## Deploy on Cloudflare Workers
+## Deploy on Render
 
 The Worker runs remotely; your computer does not need to stay on.
 
-1. Open **Cloudflare Dashboard → Workers & Pages**.
-2. Choose **Create application → Import a repository** and connect GitHub if prompted.
+1. Open the [Render Dashboard](https://dashboard.render.com/).
+2. Choose **New → Web Service** and connect GitHub if prompted.
 3. Select `akashkamath77/Z-lib-extensions` and the `main` branch.
-4. Set the project/root directory to `readest-opds-v2`.
+4. Set the **Root Directory** to `readest-opds-v2`.
 5. Use the Wrangler configuration in this folder. If the setup asks for build settings, use:
    - Build command: `npm install`
    - Deploy command: `npx wrangler deploy`
-6. Create the Worker. It should be named `readest-zlib-opds-v2` unless you change `wrangler.jsonc`.
-7. Open the Worker → **Settings → Variables and Secrets**:
-   - Add `OPDS_KEY` as a **Secret**. Use a long random password.
-   - `ZLIB_BASE` is already set to `https://z-lib.do` in `wrangler.jsonc`.
-   - Optionally add `ZLIB_COOKIE` as a **Secret** only if your own Z-Library session is required. Never put cookies in GitHub.
+6. Name the service `readest-zlib-opds` and choose the Free instance type.
+7. Under **Environment Variables**, add:
+   - Add `OPDS_KEY` as a **secret environment variable**. Use a long random password.
+   - Set `ZLIB_BASE` to `https://z-lib.gd`.
+   - Optionally add `ZLIB_COOKIE` as a **secret environment variable** only if your own Z-Library session is required. Never put cookies in GitHub.
 8. Save and deploy. Your catalogue URL will be:
    `https://readest-zlib-opds-v2.YOUR-SUBDOMAIN.workers.dev/opds?key=YOUR_OPDS_KEY`
 
@@ -57,7 +57,7 @@ Requires Node.js 20 or newer:
 
 ```sh
 npm install
-OPDS_KEY=replace-this ZLIB_BASE=https://z-lib.do npm start
+OPDS_KEY=replace-this ZLIB_BASE=https://z-lib.gd npm start
 ```
 
 ## Security
