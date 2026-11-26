@@ -1,0 +1,7 @@
+name = "readest-zlib-opds"
+main = "worker.js"
+compatibility_date = "2026-11-26"
+workers_dev = true
+
+[vars]
+ZLIB_BASE = "https://z-lib.gd"
