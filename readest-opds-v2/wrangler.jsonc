@@ -1,6 +1,6 @@
 {
   "$schema": "node_modules/wrangler/config-schema.json",
-  "name": "readest-zlib-opds",
+  "name": "readest-zlib-opds-v2",
   "main": "worker.js",
   "compatibility_date": "2026-11-26",
   "compatibility_flags": ["nodejs_compat"],
