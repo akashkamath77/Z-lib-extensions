@@ -167,7 +167,7 @@ class ZLibGdPlugin {
         this.id = 'zLibGd';
 this.name = 'Z-Library GD';
 this.site = 'https://z-lib.gd';
-this.version = '0.3.0';
+this.version = '0.3.1';
 this.icon = 'src/en/zLibGd/icon.png';
 this.imageRequestInit = {
     headers: { Referer: 'https://reader.z-lib.gd/' }
@@ -610,32 +610,38 @@ this.readerOrigins = [
         }
         if (!entry)
             throw new Error('The reader did not provide a readable EPUB chapter.');
-        const $ = (0, cheerio_1.load)(await this.xml(session, entry.url), { xmlMode: true });
-        $('script, style, link, iframe, object, embed, form').remove();
-        $('*').each((_, el) => {
-            for (const name of Object.keys(el.attribs || {})) {
-                if (/^on/i.test(name))
-                    $(el).removeAttr(name);
+        // This source exposes EPUBs as one book rather than individual chapters.
+        // Combine the EPUB spine so the single LNReader chapter contains the whole book.
+        const contents = [];
+        for (const spineEntry of session.toc) {
+            const $ = (0, cheerio_1.load)(await this.xml(session, spineEntry.url), { xmlMode: true });
+            $('script, style, link, iframe, object, embed, form').remove();
+            $('*').each((_, el) => {
+                for (const name of Object.keys(el.attribs || {})) {
+                    if (/^on/i.test(name))
+                        $(el).removeAttr(name);
+                }
+            });
+            for (const img of $('img, image').toArray()) {
+                const attr = $(img).is('img') ? 'src' : ($(img).attr('href') ? 'href' : 'xlink:href');
+                const src = $(img).attr(attr);
+                if (!src)
+                    continue;
+                if (/^(?:data:|blob:)/i.test(src)) {
+                    $(img).remove();
+                    continue;
+                }
+                const source = this.absoluteUrl(src, spineEntry.url);
+                $(img).attr(attr, await this.resource(session, source));
             }
-        });
-        for (const img of $('img, image').toArray()) {
-            const attr = $(img).is('img') ? 'src' : ($(img).attr('href') ? 'href' : 'xlink:href');
-            const src = $(img).attr(attr);
-            if (!src)
-                continue;
-            if (/^(?:data:|blob:)/i.test(src)) {
-                $(img).remove();
-                continue;
-            }
-            const source = this.absoluteUrl(src, entry.url);
-            $(img).attr(attr, await this.resource(session, source));
+            $('a[href]').each((_, el) => {
+                const href = $(el).attr('href') || '';
+                if (/^\s*(?:javascript|data):/i.test(href))
+                    $(el).removeAttr('href');
+            });
+            contents.push($('body').html() || $.root().html() || '');
         }
-        $('a[href]').each((_, el) => {
-            const href = $(el).attr('href') || '';
-            if (/^\s*(?:javascript|data):/i.test(href))
-                $(el).removeAttr('href');
-        });
-        return $('body').html() || $.root().html() || '';
+        return contents.filter(Boolean).join('<hr class="epub-section-break" />');
     }
     catalog(html, mode, englishOnly = mode === 'search') {
         const $ = (0, cheerio_1.load)(html);
