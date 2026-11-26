@@ -7,7 +7,9 @@ A Cloudflare Worker that exposes a small OPDS 1.2 catalogue for the Z-Library we
 - This is an experimental adapter, not an official Z-Library API.
 - The site may block cloud-hosted requests with browser verification, change its HTML, require a current session cookie, or restrict downloads.
 - Search currently parses the first HTML results page only. Pagination has not been verified.
-- EPUB download responses are streamed through the Worker; large-file and Readest compatibility must be tested.
+- Download links are currently discovered from direct `/dl/...` anchors on the book-detail HTML. The Worker tries to identify EPUB, PDF, MOBI, AZW3, FB2, DJVU, TXT, DOCX, RTF, HTML, CBZ, and CBR from link attributes or nearby text; if no format is exposed, it advertises `application/octet-stream`.
+- The supplied reader HAR also shows a separate `reader.z-lib.gd/api/fetch-config` flow using short-lived file-access tokens. This Worker does **not** yet implement that reader API flow; a direct `/dl/...` link must be available for acquisition to work.
+- Download responses are streamed through the Worker; large-file and Readest compatibility must be tested.
 - Use only content you are authorized to access. Do not commit HAR files, cookies, account credentials, signed URLs, or tokens.
 
 ## Deploy free on Cloudflare Workers
