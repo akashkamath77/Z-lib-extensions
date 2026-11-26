@@ -24,13 +24,13 @@ The Worker runs remotely; your computer does not need to stay on.
 5. Use the Wrangler configuration in this folder. If the setup asks for build settings, use:
    - Build command: `npm install`
    - Deploy command: `npx wrangler deploy`
-6. Create the Worker. It should be named `readest-zlib-opds` unless you change `wrangler.jsonc`.
+6. Create the Worker. It should be named `readest-zlib-opds-v2` unless you change `wrangler.jsonc`.
 7. Open the Worker → **Settings → Variables and Secrets**:
    - Add `OPDS_KEY` as a **Secret**. Use a long random password.
    - `ZLIB_BASE` is already set to `https://z-lib.do` in `wrangler.jsonc`.
    - Optionally add `ZLIB_COOKIE` as a **Secret** only if your own Z-Library session is required. Never put cookies in GitHub.
 8. Save and deploy. Your catalogue URL will be:
-   `https://readest-zlib-opds.YOUR-SUBDOMAIN.workers.dev/opds?key=YOUR_OPDS_KEY`
+   `https://readest-zlib-opds-v2.YOUR-SUBDOMAIN.workers.dev/opds?key=YOUR_OPDS_KEY`
 
 If you change the Worker name or use a custom domain, use the URL Cloudflare displays.
 
