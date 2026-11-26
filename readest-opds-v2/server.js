@@ -162,30 +162,55 @@ function parseCards(html, base) {
 function parseDetails(html, path, base) {
   const title = cleanText(html.match(/<h1[^>]*class=['"][^'"]*book-title[^'"]*['"][^>]*>([\s\S]*?)<\/h1>/i)?.[1] || "");
   const author = cleanText(html.match(/<i[^>]*class=['"][^'"]*\bauthors\b[^'"]*['"][^>]*>([\s\S]*?)<\/i>/i)?.[1] || "");
+
+  // Z-Library exposes the complete book record as Schema.org JSON-LD.
+  let schema = {};
+  for (const match of html.matchAll(/<script\b[^>]*type=['"]application\/ld\+json['"][^>]*>([\s\S]*?)<\/script>/gi)) {
+    try {
+      const candidate = JSON.parse(match[1].trim());
+      const records = Array.isArray(candidate) ? candidate : [candidate];
+      schema = records.find(item => item && item["@type"] === "Book") || schema;
+      if (schema["@type"] === "Book") break;
+    } catch {}
+  }
+
   const properties = {};
   const propertyBlocks = /<div\b([^>]*class=['"][^'"]*\bbookProperty\b[^'"]*['"][^>]*)>([\s\S]*?)<\/div>\s*<\/div>/gi;
   let propertyMatch;
   while ((propertyMatch = propertyBlocks.exec(html))) {
-    const className = attr(propertyMatch[1], "class");
-    const key = (className.match(/\bproperty_([a-z0-9_-]+)/i) || [])[1] || "";
     const label = cleanText(propertyMatch[2].match(/<div\b[^>]*class=['"][^'"]*\bproperty_label\b[^'"]*['"][^>]*>([\s\S]*?)<\/div>/i)?.[1] || "");
-    const value = cleanText(propertyMatch[2].match(/<div\b[^>]*class=['"][^'"]*\bproperty_value\b[^'"]*['"][^>]*>([\s\S]*?)<\/div>/i)?.[1] || "");
-    if (key && value) properties[key] = value;
-    if (label && value) properties[label.replace(/:\s*$/, "").toLowerCase().replace(/[^a-z0-9]+/g, "_")] = value;
+    const value = cleanText(propertyMatch[2].match(/<(?:div|span)\b[^>]*class=['"][^'"]*\bproperty_value\b[^'"]*['"][^>]*>([\s\S]*?)<\/(?:div|span)>/i)?.[1] || "");
+    if (label && value) {
+      const key = label.replace(/:\s*$/, "").toLowerCase().replace(/[^a-z0-9]+/g, "_");
+      properties[key] = value;
+    }
   }
 
   const coverBlock = html.match(/<z-cover\b([^>]*)>([\s\S]*?)<\/z-cover>/i);
   const coverImage = coverBlock && coverBlock[2].match(/<img\b([^>]*)>/i);
+  const coverSource = (coverImage && (attr(coverImage[1], "src") || attr(coverImage[1], "data-src"))) ||
+    (typeof schema.image === "string" ? schema.image : "");
   let cover = "";
-  const coverSource = coverImage ? (attr(coverImage[1], "src") || attr(coverImage[1], "data-src")) : "";
   try {
     if (coverSource) {
-      const candidate = new URL(coverSource, base);
+      const candidate = new URL(decode(coverSource), base);
       if (candidate.protocol === "https:") cover = candidate.href;
     }
   } catch {}
 
-  const metaDescription = decode(attr((html.match(/<meta\b[^>]*name=['"]description['"][^>]*>/i) || [])[0] || "", "content"));
+  const descriptionHtml =
+    html.match(/<div\b[^>]*id=['"]bookDescriptionBox['"][^>]*>([\s\S]*?)<\/div>/i)?.[1] ||
+    (typeof schema.description === "string" ? schema.description : "") ||
+    (typeof schema.review?.reviewBody === "string" ? schema.review.reviewBody : "");
+  const description = cleanText(descriptionHtml)
+    .replace(/\s+([,.;:!?])/g, "$1")
+    .trim();
+
+  const tagBlock = html.match(/<z-tags\b[^>]*>([\s\S]*?)<\/z-tags>/i);
+  const tags = tagBlock
+    ? [...tagBlock[1].matchAll(/<tag\b[^>]*>([\s\S]*?)<\/tag>/gi)].map(m => cleanText(m[1])).filter(Boolean)
+    : [];
+
   const anchors = [...html.matchAll(/<a\b([^>]*)>([\s\S]*?)<\/a>/gi)];
   const downloadAnchor = anchors.find(m => /\baddDownloadedBook\b/i.test(attr(m[1], "class")));
   let download = "";
@@ -196,26 +221,32 @@ function parseDetails(html, path, base) {
     } catch {}
   }
 
-  const format = cleanText(html.match(/<span\b[^>]*class=['"][^'"]*book-property__extension[^'"]*['"][^>]*>([\s\S]*?)<\/span>/i)?.[1] || "").toLowerCase();
-  const downloadText = downloadAnchor ? cleanText(downloadAnchor[2]) : "";
-  const fileSize = (downloadText.match(/\b\d+(?:\.\d+)?\s*(?:KB|MB|GB)\b/i) || [])[0] || (properties.file || "").match(/\b\d+(?:\.\d+)?\s*(?:KB|MB|GB)\b/i)?.[0] || "";
-  const coverId = coverBlock ? attr(coverBlock[1], "id") : "";
-  const isbn = coverBlock ? attr(coverBlock[1], "isbn") : "";
-  const language = properties.language || "";
-  const description = cleanText(html.match(/<(?:div|section)[^>]*class=['"][^'"]*(?:book-description|book__description|description-text)[^'"]*['"][^>]*>([\s\S]*?)<\/(?:div|section)>/i)?.[1] || "");
+  const fileInfo = properties.file || "";
+  const format = (fileInfo.match(/\b(EPUB|PDF|MOBI|AZW3|FB2|DJVU|TXT|DOCX|RTF|HTML|CBZ|CBR)\b/i) || [])[1]?.toLowerCase() || "";
+  const fileSize = (fileInfo.match(/\b\d+(?:\.\d+)?\s*(?:KB|MB|GB)\b/i) || [])[0] || "";
+  const isbn10 = properties.isbn_10 || "";
+  const isbn13 = properties.isbn_13 || schema.isbn || "";
+  const categories = properties.categories || "";
+  const language = properties.language || schema.inLanguage?.name || schema.inLanguage || "";
+  const publisher = properties.publisher || schema.publisher?.name || "";
+  const year = properties.year || schema.datePublished || "";
+  const pages = properties.pages || schema.numberOfPages || "";
+  const edition = properties.edition || "";
 
   return {
-    title, author, language, cover, download, format, fileSize, path, properties,
-    publisher: properties.publisher || "",
-    year: properties.year || "",
-    edition: properties.edition || "",
-    pages: properties.pages || "",
-    categories: properties.categories || "",
-    isbn: properties.isbn_13 || properties.isbn_10 || isbn || "",
-    isbn10: properties.isbn_10 || "",
-    isbn13: properties.isbn_13 || isbn || "",
-    bookId: coverId,
-    description: description || metaDescription
+    title: title || schema.name || "",
+    author: author || (Array.isArray(schema.author) ? schema.author.map(a => a.name).filter(Boolean).join(", ") : schema.author?.name || ""),
+    language: String(language),
+    cover, download, format, fileSize, path, properties,
+    publisher: String(publisher),
+    year: String(year),
+    edition: String(edition),
+    pages: String(pages),
+    categories,
+    isbn: String(isbn13 || isbn10 || ""),
+    isbn10, isbn13: String(isbn13),
+    tags,
+    description
   };
 }
 
@@ -335,9 +366,12 @@ const server = http.createServer(async (req, res) => {
         (book.year ? '<dc:date>' + xml(book.year) + '</dc:date>' : "") +
         (book.language ? '<dc:language>' + xml(book.language) + '</dc:language>' : "") +
         (book.isbn ? '<dc:identifier>' + xml(book.isbn) + '</dc:identifier>' : "") +
-        (book.categories ? book.categories.split(/[,;]+/).map(x => x.trim()).filter(Boolean).map(x => '<dc:subject>' + xml(x) + '</dc:subject>').join("") : "") +
+        (book.categories ? '<dc:subject>' + xml(book.categories) + '</dc:subject>' : "") +
+        (book.tags || []).map(tag => '<dc:subject>' + xml(tag) + '</dc:subject>').join("") +
         imageLinks + acquisition +
+        (book.description ? '<dc:description>' + xml(book.description) + '</dc:description>' : "") +
         (summary ? '<summary type="text">' + xml(summary) + '</summary>' : "") +
+        (book.description ? '<content type="text">' + xml(book.description) + '</content>' : "") +
         (metadata ? '<content type="text">' + xml(metadata) + '</content>' : "") +
         '</entry></feed>';
       res.writeHead(200, xmlHeaders);
