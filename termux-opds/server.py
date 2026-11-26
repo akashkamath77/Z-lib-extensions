@@ -204,7 +204,7 @@ async def search(
         links.append(f'<link rel="next" href="{base}/opds/search?{query_suffix}&amp;page={page_now + 1}{token_suffix}" type="application/atom+xml;profile=opds-catalog"/>')
     if page_now > 1:
         links.append(f'<link rel="previous" href="{base}/opds/search?{query_suffix}&amp;page={page_now - 1}{token_suffix}" type="application/atom+xml;profile=opds-catalog"/>')
-    self_url = f"{base}/opds/search?{query_suffix}&amp;page={page_now}{token_suffix}"
+    self_url = f"{base}/opds/search?{query_suffix}&page={page_now}{token_suffix}"
     return xml_response(feed(f"Z-Library: {query}", self_url, entries, "".join(links)))
 
 
