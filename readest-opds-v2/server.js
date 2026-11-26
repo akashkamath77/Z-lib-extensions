@@ -264,7 +264,9 @@ function bookEntry(book, origin, key) {
       '<link rel="http://opds-spec.org/image/thumbnail" href="' + xml(book.cover) + '" type="image/jpeg"/>'
     : "";
   return "<entry><title>" + xml(book.title) + "</title><id>" + xml(book.path) + "</id><updated>" + new Date().toISOString() + "</updated>" +
-    cover + '<link rel="subsection" href="' + xml(detail) +
+    cover + '<link rel="http://opds-spec.org/acquisition" href="' + xml(detail) +
+    '" type="application/atom+xml;profile=opds-catalog;kind=acquisition" title="Open book details and download options"/>' +
+    '<link rel="alternate" href="' + xml(detail) +
     '" type="application/atom+xml;profile=opds-catalog;kind=acquisition"/></entry>';
 }
 function send(res, status, body, type = "text/plain; charset=utf-8") {
