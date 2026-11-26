@@ -126,9 +126,19 @@ export default {
 
     if (u.pathname === "/opds" || u.pathname === "/") {
       const entries = [
-        `<entry><title>Search Z-Library</title><id>urn:readest-zlib:search</id><updated>${new Date().toISOString()}</updated><content type="text">Search the catalogue</content><link rel="search" href="/opds/search{?q}" type="application/atom+xml;profile=opds-catalog;kind=acquisition"/></entry>`,
+        `<entry><title>Search Z-Library</title><id>urn:readest-zlib:search</id><updated>${new Date().toISOString()}</updated><content type="text">Search the catalogue</content><link rel="search" href="/opds/search.xml?key=\${encodeURIComponent(key)}" type="application/opensearchdescription+xml"/></entry>`,
       ];
       return new Response(feed("Z-Library", u.origin + "/opds" + keySuffix, entries, key), { headers: xmlHeaders });
+    }
+
+    if (u.pathname === "/opds/search.xml") {
+      const description = `<?xml version="1.0" encoding="UTF-8"?>
+<OpenSearchDescription xmlns="http://a9.com/-/spec/opensearch/1.1/">
+  <ShortName>Z-Library</ShortName>
+  <Description>Search Z-Library</Description>
+  <Url type="application/atom+xml;profile=opds-catalog;kind=acquisition" template="${xml(u.origin)}/opds/search?q={searchTerms}&amp;key=${encodeURIComponent(key)}"/>
+</OpenSearchDescription>`;
+      return new Response(description, { headers: { "Content-Type": "application/opensearchdescription+xml; charset=utf-8" } });
     }
 
     if (u.pathname === "/opds/search") {
