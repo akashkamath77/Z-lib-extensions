@@ -1,0 +1,14 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "readest-zlib-opds",
+  "main": "worker.js",
+  "compatibility_date": "2026-11-26",
+  "compatibility_flags": ["nodejs_compat"],
+  "workers_dev": true,
+  "observability": {
+    "enabled": true
+  },
+  "vars": {
+    "ZLIB_BASE": "https://z-lib.do"
+  }
+}
