@@ -1,0 +1,8 @@
+{
+  "name": "readest-zlib-opds-v2",
+  "version": "0.2.0",
+  "private": true,
+  "description": "Experimental Z-Library OPDS bridge for Readest",
+  "engines": { "node": ">=20" },
+  "scripts": { "start": "node server.js" }
+}
