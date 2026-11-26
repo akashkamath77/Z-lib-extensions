@@ -27,6 +27,10 @@ function absolute(path, base) {
   }
   return url.href;
 }
+function imageUrl(path, base) {
+  const url = new URL(path, base);
+  return url.protocol === "https:" ? url.href : "";
+}
 function keyFrom(request) {
   return new URL(request.url).searchParams.get("key") || "";
 }
@@ -92,7 +96,7 @@ function parseCards(html, base) {
     seen.add(path);
     const image = body.match(/<img\b[^>]*(?:src|data-src)=["']([^"']+)["'][^>]*>/i);
     let cover = "";
-    try { if (image) cover = absolute(decode(image[1]), base); } catch {}
+    try { if (image) cover = imageUrl(decode(image[1]), base); } catch {}
     books.push({ title, path, cover, author: "", publisher: "", year: "" });
   }
   return books;
@@ -104,7 +108,7 @@ function parseDetails(html, path, base) {
   const year = cleanText(html.match(/class=["'][^"']*property_year[^"']*["'][^>]*>[\s\S]*?class=["'][^"']*property_value[^"']*["'][^>]*>([\s\S]*?)<\//i)?.[1] || "");
   const coverMatch = html.match(/<img[^>]+(?:src|data-src)=["']([^"']+)["'][^>]*>/i);
   let cover = "";
-  try { if (coverMatch) cover = new URL(decode(coverMatch[1]), base).href; } catch {}
+  try { if (coverMatch) cover = imageUrl(decode(coverMatch[1]), base); } catch {}
   const download = html.match(/href=["'](\/dl\/[^"'?#]+)["']/i)?.[1] || "";
   return { title, author, publisher, year, cover, download, path };
 }
