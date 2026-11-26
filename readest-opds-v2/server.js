@@ -107,7 +107,7 @@ async function upstream(input, env, init = {}) {
         continue;
       }
     }
-    if (challengeRetried && isBrowserCheck(await response.clone().text())) {
+    if (challengeRetried && (response.status === 503 || (response.headers.get("content-type") || "").includes("text/html")) && isBrowserCheck(await response.clone().text())) {
       challengeCookies.delete(current.origin);
       throw new Error("Z-Library did not accept the browser-check response.");
     }
