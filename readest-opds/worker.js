@@ -12,7 +12,7 @@ function decode(value = "") {
     .replace(/&#(\d+);/g, (_, n) => String.fromCodePoint(Number(n)));
 }
 function attr(source, name) {
-  const match = source.match(new RegExp("(?:^|\\s)" + name + "\\s*=\\s*(['\\"])(.*?)\\1", "i"));
+  const match = source.match(new RegExp("(?:^|\s)" + name + "\s*=\s*(['\\"])(.*?)\\1", "i"));
   return match ? decode(match[2]) : "";
 }
 function cleanText(source = "") {
@@ -147,8 +147,8 @@ function parseDetails(html, path, base) {
   let cover = "";
   try { if (coverMatch) cover = imageUrl(decode(coverMatch[1]), base); } catch {}
   // Select the visible download button, not hidden template/preload links.
-  const downloadAnchor = [...html.matchAll(/<a\\b([^>]*)>([\\s\\S]*?)<\\/a>/gi)]
-    .find(match => /\\baddDownloadedBook\\b/i.test(attr(match[1], "class")));
+  const downloadAnchor = [...html.matchAll(/<a\b([^>]*)>([\s\S]*?)<\/a>/gi)]
+    .find(match => /\baddDownloadedBook\b/i.test(attr(match[1], "class")));
   let download = "";
   if (downloadAnchor) {
     const href = attr(downloadAnchor[1], "href");
@@ -156,7 +156,7 @@ function parseDetails(html, path, base) {
       const candidate = new URL(href, base);
       if (candidate.protocol === "https:" &&
           candidate.hostname === new URL(base).hostname &&
-          /^\\/dl\\/[A-Za-z0-9_-]+$/.test(candidate.pathname)) {
+          /^\/dl\/[A-Za-z0-9_-]+$/.test(candidate.pathname)) {
         download = candidate.pathname;
       }
     } catch {}
