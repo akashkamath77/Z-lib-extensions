@@ -126,7 +126,7 @@ export default {
 
     if (u.pathname === "/opds" || u.pathname === "/") {
       const entries = [
-        `<entry><title>Search Z-Library</title><id>urn:readest-zlib:search</id><updated>${new Date().toISOString()}</updated><content type="text">Search the catalogue</content><link rel="search" href="/opds/search.xml?key=\${encodeURIComponent(key)}" type="application/opensearchdescription+xml"/></entry>`,
+        `<entry><title>Search Z-Library</title><id>urn:readest-zlib:search</id><updated>${new Date().toISOString()}</updated><content type="text">Search the catalogue</content><link rel="search" href="/opds/search.xml?key=${encodeURIComponent(key)}" type="application/opensearchdescription+xml"/></entry>`,
       ];
       return new Response(feed("Z-Library", u.origin + "/opds" + keySuffix, entries, key), { headers: xmlHeaders });
     }
