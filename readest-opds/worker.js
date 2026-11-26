@@ -101,6 +101,43 @@ function parseCards(html, base) {
   }
   return books;
 }
+function detectFormat(html, downloadPath) {
+  const linkRe = /<a\b([^>]*href=["'](\/dl\/[^"'?#]+)["'][^>]*)>([\s\S]*?)<\/a>/gi;
+  let match;
+  while ((match = linkRe.exec(html))) {
+    if (match[2] !== downloadPath) continue;
+    const hints = [
+      attr(match[1], "data-format"),
+      attr(match[1], "data-extension"),
+      attr(match[1], "type"),
+      attr(match[1], "download"),
+      cleanText(match[3]),
+      match[2]
+    ].join(" ").toLowerCase();
+    const formats = ["epub", "pdf", "mobi", "azw3", "fb2", "djvu", "txt", "docx", "rtf", "html", "cbz", "cbr"];
+    const found = formats.find(format => new RegExp("(?:^|[^a-z0-9])" + format + "(?:$|[^a-z0-9])", "i").test(hints));
+    if (found) return found;
+  }
+  const fallbackHints = (html.match(/.{0,100}\/dl\/[^"'\s]+.{0,100}/i)?.[0] || "").toLowerCase();
+  return ["epub", "pdf", "mobi", "azw3", "fb2", "djvu", "txt", "docx", "rtf", "html", "cbz", "cbr"]
+    .find(format => new RegExp("(?:^|[^a-z0-9])" + format + "(?:$|[^a-z0-9])", "i").test(fallbackHints)) || "";
+}
+function mimeForFormat(format) {
+  return ({
+    epub: "application/epub+zip",
+    pdf: "application/pdf",
+    mobi: "application/x-mobipocket-ebook",
+    azw3: "application/vnd.amazon.ebook",
+    fb2: "application/x-fictionbook+xml",
+    djvu: "image/vnd.djvu",
+    txt: "text/plain",
+    docx: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    rtf: "application/rtf",
+    html: "text/html",
+    cbz: "application/vnd.comicbook+zip",
+    cbr: "application/vnd.comicbook-rar"
+  })[format] || "application/octet-stream";
+}
 function parseDetails(html, path, base) {
   const title = cleanText(html.match(/<h1[^>]*class=["'][^"']*book-title[^"']*["'][^>]*>([\s\S]*?)<\/h1>/i)?.[1] || "");
   const author = cleanText(html.match(/class=["'][^"']*authors[^"']*["'][^>]*>([\s\S]*?)<\//i)?.[1] || "");
@@ -110,7 +147,8 @@ function parseDetails(html, path, base) {
   let cover = "";
   try { if (coverMatch) cover = imageUrl(decode(coverMatch[1]), base); } catch {}
   const download = html.match(/href=["'](\/dl\/[^"'?#]+)["']/i)?.[1] || "";
-  return { title, author, publisher, year, cover, download, path };
+  const format = download ? detectFormat(html, download) : "";
+  return { title, author, publisher, year, cover, download, format, path };
 }
 function errorPage(response, body) {
   if (response.status === 503 || /checking your browser|just a moment|captcha|verify you are human/i.test(body)) {
@@ -129,10 +167,8 @@ export default {
     const xmlHeaders = { "Content-Type": "application/atom+xml; charset=utf-8", "Cache-Control": "no-store" };
 
     if (u.pathname === "/opds" || u.pathname === "/") {
-      const entries = [
-        `<entry><title>Search Z-Library</title><id>urn:readest-zlib:search</id><updated>${new Date().toISOString()}</updated><content type="text">Search the catalogue</content><link rel="search" href="/opds/search.xml?key=${encodeURIComponent(key)}" type="application/opensearchdescription+xml"/></entry>`,
-      ];
-      return new Response(feed("Z-Library", u.origin + "/opds" + keySuffix, entries, key), { headers: xmlHeaders });
+      const searchLink = \`<link rel="search" href="/opds/search.xml?key=\${encodeURIComponent(key)}" type="application/opensearchdescription+xml" title="Search Z-Library"/>\`;
+      return new Response(feed("Z-Library", u.origin + "/opds" + keySuffix, [], key, searchLink), { headers: xmlHeaders });
     }
 
     if (u.pathname === "/opds/search.xml") {
@@ -166,7 +202,11 @@ export default {
       const book = parseDetails(html, path, base);
       if (!book.title) return new Response("Could not parse the book details page.", { status: 502 });
       const links = [];
-      if (book.download) links.push(`<link rel="http://opds-spec.org/acquisition" href="/opds/download?path=${encodeURIComponent(book.download)}&amp;key=${encodeURIComponent(key)}" type="application/epub+zip" title="Download"/>`);
+      if (book.download) {
+        const mediaType = mimeForFormat(book.format);
+        const formatLabel = book.format ? book.format.toUpperCase() : "Unknown format";
+        links.push(\`<link rel="http://opds-spec.org/acquisition" href="/opds/download?path=\${encodeURIComponent(book.download)}&amp;key=\${encodeURIComponent(key)}" type="\${mediaType}" title="Download \${formatLabel}"/>\`);
+      }
       const body = `<?xml version="1.0" encoding="UTF-8"?>
 <feed xmlns="http://www.w3.org/2005/Atom" xmlns:opds="http://opds-spec.org/2010/catalog">
 <title>${xml(book.title)}</title><id>${xml(base + path)}</id><updated>${new Date().toISOString()}</updated>
