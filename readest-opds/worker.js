@@ -146,7 +146,21 @@ function parseDetails(html, path, base) {
   const coverMatch = html.match(/<img[^>]+(?:src|data-src)=["']([^"']+)["'][^>]*>/i);
   let cover = "";
   try { if (coverMatch) cover = imageUrl(decode(coverMatch[1]), base); } catch {}
-  const download = html.match(/href=["'](\/dl\/[^"'?#]+)["']/i)?.[1] || "";
+  // Select the visible download button, not hidden template/preload links.
+  const downloadAnchor = [...html.matchAll(/<a\\b([^>]*)>([\\s\\S]*?)<\\/a>/gi)]
+    .find(match => /\\baddDownloadedBook\\b/i.test(attr(match[1], "class")));
+  let download = "";
+  if (downloadAnchor) {
+    const href = attr(downloadAnchor[1], "href");
+    try {
+      const candidate = new URL(href, base);
+      if (candidate.protocol === "https:" &&
+          candidate.hostname === new URL(base).hostname &&
+          /^\\/dl\\/[A-Za-z0-9_-]+$/.test(candidate.pathname)) {
+        download = candidate.pathname;
+      }
+    } catch {}
+  }
   const format = download ? detectFormat(html, download) : "";
   return { title, author, publisher, year, cover, download, format, path };
 }
