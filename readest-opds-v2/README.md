@@ -1,53 +1,64 @@
 # Readest Z-Library OPDS v2
 
-A separate Node.js OPDS 1.2 bridge for Readest. It does not replace the LNReader plugin or the earlier \`readest-opds\` prototype.
+A separate OPDS 1.2 bridge for Readest. It does not replace the LNReader plugin or the earlier prototypes.
 
 ## Current scope
 
 - OPDS root catalogue and OpenSearch endpoint.
 - Popular English catalogue and first-page English search.
-- Book metadata, cover, author, and direct download links when the Z-Library details page exposes a \`/dl/\` link.
+- Book metadata, cover, author, and direct download links when the Z-Library details page exposes a `/dl/` link.
 - Streams downloads through the service; redirects to a file CDN are followed without forwarding Z-Library cookies.
-- Handles the specific SHA-1 proof-of-work browser-check format documented in the reference LNReader extension. Unknown challenges and CAPTCHA pages are rejected.
+- Handles the observed SHA-1 proof-of-work browser-check format. Unknown challenges and CAPTCHA pages are rejected.
 - Optional private OPDS key and optional user-supplied Z-Library session cookie.
 
-**Important:** the reference extension also implements a separate reader API flow. This OPDS bridge does not yet reconstruct an EPUB from that reader API. If a book page has no direct \`/dl/\` acquisition link, the catalogue can show its details but cannot download that edition. Z-Library can change its domains, markup, anti-bot checks, and download rules at any time. Use only books you are authorized to access.
+**Important:** the reference LNReader extension also implements a separate reader API flow. This OPDS bridge does not yet reconstruct an EPUB from that reader API. If a book page has no direct `/dl/` acquisition link, the catalogue can show its details but cannot download that edition. Z-Library can change its domains, markup, anti-bot checks, and download rules at any time. Use only books you are authorized to access.
 
-## Deploy on Render (free test deployment)
+## Deploy on Cloudflare Workers
 
-The service runs remotely; your computer does not need to stay on. Render's free web service sleeps after 15 minutes without traffic and can take about a minute to wake up again.
+The Worker runs remotely; your computer does not need to stay on.
 
-1. In Render, choose **New → Web Service** and connect this GitHub repository.
-2. Set **Root Directory** to \`readest-opds-v2\`.
-3. Set **Build Command** to \`npm install\`.
-4. Set **Start Command** to \`npm start\`.
-5. Select the **Free** instance.
-6. Add environment variables:
-   - \`OPDS_KEY\`: a long random password (required).
-   - \`ZLIB_BASE\`: \`https://z-lib.do\`.
-   - \`ZLIB_COOKIE\`: optional; only if your own session is needed. Keep it in Render environment variables, never in GitHub.
-7. Deploy. Your catalogue root will be:
-   \`https://YOUR-SERVICE.onrender.com/opds?key=YOUR_OPDS_KEY\`
+1. Open **Cloudflare Dashboard → Workers & Pages**.
+2. Choose **Create application → Import a repository** and connect GitHub if prompted.
+3. Select `akashkamath77/Z-lib-extensions` and the `main` branch.
+4. Set the project/root directory to `readest-opds-v2`.
+5. Use the Wrangler configuration in this folder. If the setup asks for build settings, use:
+   - Build command: `npm install`
+   - Deploy command: `npx wrangler deploy`
+6. Create the Worker. It should be named `readest-zlib-opds` unless you change `wrangler.jsonc`.
+7. Open the Worker → **Settings → Variables and Secrets**:
+   - Add `OPDS_KEY` as a **Secret**. Use a long random password.
+   - `ZLIB_BASE` is already set to `https://z-lib.do` in `wrangler.jsonc`.
+   - Optionally add `ZLIB_COOKIE` as a **Secret** only if your own Z-Library session is required. Never put cookies in GitHub.
+8. Save and deploy. Your catalogue URL will be:
+   `https://readest-zlib-opds.YOUR-SUBDOMAIN.workers.dev/opds?key=YOUR_OPDS_KEY`
 
-In Readest on Android: **Import → Online Library → Add catalog**, then paste the catalogue URL. Readest supports OPDS catalogues and downloads acquired books into its library.
+If you change the Worker name or use a custom domain, use the URL Cloudflare displays.
+
+## Important Cloudflare limitation
+
+Workers Free allows 10 ms of CPU time per request. The SHA-1 browser-check solver may exceed that limit if Z-Library presents a challenge. If the Worker reports error 1102, the options are to optimize/test the solver or use the Workers Paid plan with a higher CPU limit. We will test this before assuming the integration works. Network waiting time does not count toward CPU time.
+
+## Use in Readest (Android)
+
+In Readest: **Import → Online Library → Add catalog**, then paste the catalogue URL above.
 
 ## Endpoints
 
-- \`/opds?key=...\` — catalogue root
-- \`/opds/popular?key=...\` — popular English books
-- \`/opds/search.xml?key=...\` — OpenSearch description
-- \`/opds/search?q=terms&key=...\` — search
-- \`/opds/book?path=%2Fbook%2F...&key=...\` — details and acquisition
-- \`/opds/download?path=%2Fdl%2F...&key=...\` — streamed file
+- `/opds?key=...` — catalogue root
+- `/opds/popular?key=...` — popular English books
+- `/opds/search.xml?key=...` — OpenSearch description
+- `/opds/search?q=terms&key=...` — search
+- `/opds/book?path=%2Fbook%2F...&key=...` — details and acquisition
+- `/opds/download?path=%2Fdl%2F...&key=...` — streamed file
 
 ## Local run
 
 Requires Node.js 20 or newer:
 
-\`\`\`sh
+```sh
 npm install
 OPDS_KEY=replace-this ZLIB_BASE=https://z-lib.do npm start
-\`\`\`
+```
 
 ## Security
 
