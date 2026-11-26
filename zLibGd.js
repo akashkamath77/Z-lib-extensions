@@ -470,7 +470,7 @@ this.readerOrigins = [
             catch { /* try legacy format below */ }
         }
         if (!info) {
-            const match = html.match(/\\bconst\\s+connectionInfo\\s*=\\s*JSON\\.parse\\('((?:\\\\.|[^'\\\\])*)'\\)/);
+            const match = html.match(/\bconst\s+connectionInfo\s*=\s*JSON\.parse\('((?:\\.|[^'\\])*)'\)/);
             if (match) {
                 try {
                     info = JSON.parse(JSON.parse('"' + match[1] + '"'));
