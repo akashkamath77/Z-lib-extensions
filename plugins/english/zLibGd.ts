@@ -366,10 +366,10 @@ class ZLibGdPlugin {
     const ref = JSON.parse(decodeURIComponent(chapterPath.slice(13)));
     const path = this.bookPath(ref.book);
     const session = await this.session(path);
-    // Only request resources in this book's server-provided reading order.
     const entry = session.toc.find(item => item.url === ref.source)
       || session.toc.find(item => new URL(item.url).pathname === new URL(ref.source).pathname);
     if (!entry) throw new Error('The book layout changed; refresh its chapter list.');
+
     const $ = load(await this.xml(session, entry.url), { xmlMode: true });
     $('script, style, link, iframe, object, embed, form').remove();
     $('*').each((_, el) => {
@@ -377,21 +377,146 @@ class ZLibGdPlugin {
         if (/^on/i.test(name)) $(el).removeAttr(name);
       }
     });
-    for (const img of $('img, image').toArray()) {
-      const attr = $(img).is('img') ? 'src' : ($(img).attr('href') ? 'href' : 'xlink:href');
-      const src = $(img).attr(attr);
-      if (!src) continue;
-      if (/^(?:data:|blob:)/i.test(src)) { $(img).remove(); continue; }
-      const source = this.absoluteUrl(src, entry.url);
-      $(img).attr(attr, await this.resource(session, source));
-    }
-    $('a[href]').each((_, el) => {
-      const href = $(el).attr('href') || '';
-      if (/^\s*(?:javascript|data):/i.test(href)) $(el).removeAttr('href');
-    });
-    return $('body').html() || $.root().html() || '';
-  }
 
+    const mainUrl = new URL(entry.url);
+    const mainPath = mainUrl.origin + mainUrl.pathname + mainUrl.search;
+    const linked = new Map<string, string>();
+    const pending: { url: string; fragment: string; id: string }[] = [];
+    const linkedHtml: string[] = [];
+    let linkedCount = 0;
+
+    const addLinkedTarget = (url: URL): string => {
+      const fragment = url.hash ? decodeURIComponent(url.hash.slice(1)) : '';
+      const source = url.origin + url.pathname + url.search;
+      const key = source + '#' + fragment;
+      let id = linked.get(key);
+      if (!id) {
+        id = 'zlib-ref-' + (++linkedCount);
+        linked.set(key, id);
+        pending.push({ url: source, fragment, id });
+      }
+      return id;
+    };
+
+    const rewriteLinks = async (doc: ReturnType<typeof load>, scope: any, baseUrl: string, prefix: string) => {
+      const base = new URL(baseUrl);
+      const basePath = base.origin + base.pathname + base.search;
+      const anchors = scope.find('a[href]').toArray();
+      for (const node of anchors) {
+        const link = doc(node);
+        const href = (link.attr('href') || '').trim();
+        if (!href) continue;
+        if (/^(?:javascript|data):/i.test(href)) {
+          link.removeAttr('href');
+          continue;
+        }
+        if (/^(?:mailto:|tel:|https?:)/i.test(href)) continue;
+        if (/^[a-z][a-z0-9+.-]*:/i.test(href)) {
+          link.removeAttr('href');
+          continue;
+        }
+        let target: URL;
+        try {
+          target = new URL(this.absoluteUrl(href, baseUrl));
+        } catch {
+          link.removeAttr('href');
+          continue;
+        }
+        if (target.origin !== base.origin) continue;
+        const targetPath = target.origin + target.pathname + target.search;
+        const fragment = target.hash ? decodeURIComponent(target.hash.slice(1)) : '';
+        if (targetPath === basePath) {
+          if (prefix && fragment) link.attr('href', '#' + prefix + fragment);
+          else if (!fragment) link.removeAttr('href');
+          continue;
+        }
+        if (targetPath === mainPath) {
+          if (fragment) link.attr('href', '#' + fragment);
+          else link.removeAttr('href');
+          continue;
+        }
+        link.attr('href', '#' + addLinkedTarget(target));
+      }
+    };
+
+    const signImages = async (doc: ReturnType<typeof load>, scope: any, baseUrl: string) => {
+      for (const node of scope.find('img, image').toArray()) {
+        const image = doc(node);
+        const attr = image.is('img') ? 'src' : (image.attr('href') ? 'href' : 'xlink:href');
+        const src = image.attr(attr);
+        if (!src) continue;
+        if (/^(?:data:|blob:)/i.test(src)) {
+          image.remove();
+          continue;
+        }
+        try {
+          const source = this.absoluteUrl(src, baseUrl);
+          if (new URL(source).origin === new URL(baseUrl).origin) {
+            image.attr(attr, await this.resource(session, source));
+          }
+        } catch {
+          image.remove();
+        }
+      }
+    };
+
+    await signImages($, $.root(), entry.url);
+    await rewriteLinks($, $.root(), entry.url, '');
+
+    // EPUB footnotes and cross-references often point to separate XHTML files.
+    // LNReader renders chapter HTML with the plugin site as its base URL, so
+    // these links must become in-page anchors rather than website-relative URLs.
+    while (pending.length && linkedHtml.length < 40) {
+      const target = pending.shift()!;
+      let doc: ReturnType<typeof load>;
+      try {
+        doc = load(await this.xml(session, target.url), { xmlMode: true });
+      } catch {
+        continue;
+      }
+      doc('script, style, link, iframe, object, embed, form').remove();
+      doc('*').each((_, el) => {
+        for (const name of Object.keys((el as any).attribs || {})) {
+          if (/^on/i.test(name)) doc(el).removeAttr(name);
+        }
+      });
+
+      let selected: any;
+      if (target.fragment) {
+        selected = doc('[id]').filter((_, el) => doc(el).attr('id') === target.fragment).first();
+        if (!selected.length) {
+          selected = doc('[name]').filter((_, el) => doc(el).attr('name') === target.fragment).first();
+        }
+        if (selected.length && ['a', 'span'].includes((selected[0] as any).tagName?.toLowerCase())) {
+          const parent = selected.parent();
+          if (parent.length && ['p', 'li', 'dd', 'dt', 'div'].includes((parent[0] as any).tagName?.toLowerCase())) {
+            selected = parent;
+          }
+        }
+      } else {
+        selected = doc('body').children();
+        if (!selected.length) selected = doc.root().children();
+      }
+      if (!selected.length) continue;
+
+      const prefix = target.id + '-';
+      await signImages(doc, selected, target.url);
+      await rewriteLinks(doc, selected, target.url, prefix);
+
+      const idNodes = selected.toArray().concat(selected.find('[id]').toArray());
+      for (const node of idNodes) {
+        const item = doc(node);
+        const oldId = item.attr('id');
+        if (oldId) item.attr('id', prefix + oldId);
+      }
+      const html = selected.toArray().map((node: any) => doc.html(node)).join('');
+      linkedHtml.push('<div class="zlib-linked-reference" id="' + target.id + '">' + html + '</div>');
+    }
+
+    const content = $('body').html() || $.root().html() || '';
+    if (!content.trim()) throw new Error('The EPUB section was empty after parsing.');
+    return content + linkedHtml.join('');
+  }
   private catalog(html: string, mode: 'popular' | 'search') {
     const $ = load(html);
     const books: { name: string; path: string; cover?: string; language?: string }[] = [];
