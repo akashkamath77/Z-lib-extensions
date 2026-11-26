@@ -167,7 +167,7 @@ class ZLibGdPlugin {
         this.id = 'zLibGd';
 this.name = 'Z-Library GD';
 this.site = 'https://z-lib.gd';
-this.version = '0.3.2';
+this.version = '0.3.3';
 this.icon = 'src/en/zLibGd/icon.png';
 this.imageRequestInit = {
     headers: { Referer: 'https://reader.z-lib.gd/' }
@@ -572,20 +572,30 @@ this.readerOrigins = [
         const name = $('h1.book-title').first().text().trim();
         if (!name)
             throw new Error('Book details were not found.');
-        // Keep book metadata independent from the reader API. The reader service
-        // is initialized only when the user opens an individual EPUB section.
+        // Reader initialization is isolated: a reader/API failure must not
+        // prevent the book's metadata page from opening.
         const cover = $('.details-book-cover-container z-cover img[src], .details-book-cover-container img[src]').first().attr('src');
-        const hasReader = $('a.reader-link').length > 0;
+        let chapters = [];
+        if ($('a.reader-link').length) {
+            try {
+                const session = await this.session(path, html);
+                chapters = session.toc.map((entry, index) => ({
+                    name: entry.name || `Section ${index + 1}`,
+                    chapterNumber: index + 1,
+                    path: 'zlib-chapter:' + encodeURIComponent(JSON.stringify({ book: path, source: entry.url })),
+                }));
+            }
+            catch {
+                // Leave metadata available even when the reader backend is unavailable.
+                chapters = [];
+            }
+        }
         return {
             name, path, author: $('.authors').first().text().trim(),
             summary: $('#bookDescriptionBox').text().trim(),
             genres: $('.property_categories .property_value').text().trim(),
             ...(cover ? { cover: this.absoluteUrl(cover, this.site) } : {}),
-            chapters: hasReader ? [{
-                name: 'Open EPUB',
-                chapterNumber: 1,
-                path: 'zlib-open:' + encodeURIComponent(path),
-            }] : [],
+            chapters,
         };
     }
     async parseChapter(chapterPath) {
