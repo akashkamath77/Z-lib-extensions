@@ -466,8 +466,10 @@ class ZLibGdPlugin {
     // EPUB footnotes and cross-references often point to separate XHTML files.
     // LNReader renders chapter HTML with the plugin site as its base URL, so
     // these links must become in-page anchors rather than website-relative URLs.
-    while (pending.length && linkedHtml.length < 40) {
+    let processedLinked = 0;
+    while (pending.length && processedLinked < 40) {
       const target = pending.shift()!;
+      processedLinked++;
       let doc: ReturnType<typeof load>;
       try {
         doc = load(await this.xml(session, target.url), { xmlMode: true });
