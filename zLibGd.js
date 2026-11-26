@@ -167,7 +167,7 @@ class ZLibGdPlugin {
         this.id = 'zLibGd';
 this.name = 'Z-Library GD';
 this.site = 'https://z-lib.gd';
-this.version = '0.3.1';
+this.version = '0.3.2';
 this.icon = 'src/en/zLibGd/icon.png';
 this.imageRequestInit = {
     headers: { Referer: 'https://reader.z-lib.gd/' }
@@ -573,7 +573,7 @@ this.readerOrigins = [
         if (!name)
             throw new Error('Book details were not found.');
         // Keep book metadata independent from the reader API. The reader service
-        // is initialized only when the user opens the book.
+        // is initialized only when the user opens an individual EPUB section.
         const cover = $('.details-book-cover-container z-cover img[src], .details-book-cover-container img[src]').first().attr('src');
         const hasReader = $('a.reader-link').length > 0;
         return {
@@ -582,7 +582,7 @@ this.readerOrigins = [
             genres: $('.property_categories .property_value').text().trim(),
             ...(cover ? { cover: this.absoluteUrl(cover, this.site) } : {}),
             chapters: hasReader ? [{
-                name: 'Open book (EPUB)',
+                name: 'Open EPUB',
                 chapterNumber: 1,
                 path: 'zlib-open:' + encodeURIComponent(path),
             }] : [],
@@ -610,38 +610,37 @@ this.readerOrigins = [
         }
         if (!entry)
             throw new Error('The reader did not provide a readable EPUB chapter.');
-        // This source exposes EPUBs as one book rather than individual chapters.
-        // Combine the EPUB spine so the single LNReader chapter contains the whole book.
-        const contents = [];
-        for (const spineEntry of session.toc) {
-            const $ = (0, cheerio_1.load)(await this.xml(session, spineEntry.url), { xmlMode: true });
-            $('script, style, link, iframe, object, embed, form').remove();
-            $('*').each((_, el) => {
-                for (const name of Object.keys(el.attribs || {})) {
-                    if (/^on/i.test(name))
-                        $(el).removeAttr(name);
-                }
-            });
-            for (const img of $('img, image').toArray()) {
-                const attr = $(img).is('img') ? 'src' : ($(img).attr('href') ? 'href' : 'xlink:href');
-                const src = $(img).attr(attr);
-                if (!src)
-                    continue;
-                if (/^(?:data:|blob:)/i.test(src)) {
-                    $(img).remove();
-                    continue;
-                }
-                const source = this.absoluteUrl(src, spineEntry.url);
-                $(img).attr(attr, await this.resource(session, source));
+        // Fetch only the selected spine document. Loading the entire EPUB in one
+        // request can exceed LNReader's chapter-load limits on Android.
+        const $ = (0, cheerio_1.load)(await this.xml(session, entry.url), { xmlMode: true });
+        $('script, style, link, iframe, object, embed, form').remove();
+        $('*').each((_, el) => {
+            for (const name of Object.keys(el.attribs || {})) {
+                if (/^on/i.test(name))
+                    $(el).removeAttr(name);
             }
-            $('a[href]').each((_, el) => {
-                const href = $(el).attr('href') || '';
-                if (/^\s*(?:javascript|data):/i.test(href))
-                    $(el).removeAttr('href');
-            });
-            contents.push($('body').html() || $.root().html() || '');
+        });
+        for (const img of $('img, image').toArray()) {
+            const attr = $(img).is('img') ? 'src' : ($(img).attr('href') ? 'href' : 'xlink:href');
+            const src = $(img).attr(attr);
+            if (!src)
+                continue;
+            if (/^(?:data:|blob:)/i.test(src)) {
+                $(img).remove();
+                continue;
+            }
+            const source = this.absoluteUrl(src, entry.url);
+            $(img).attr(attr, await this.resource(session, source));
         }
-        return contents.filter(Boolean).join('<hr class="epub-section-break" />');
+        $('a[href]').each((_, el) => {
+            const href = $(el).attr('href') || '';
+            if (/^\\s*(?:javascript|data):/i.test(href))
+                $(el).removeAttr('href');
+        });
+        const content = $('body').html() || $.root().html() || '';
+        if (!content.trim())
+            throw new Error('The EPUB section was empty after parsing.');
+        return content;
     }
     catalog(html, mode, englishOnly = mode === 'search') {
         const $ = (0, cheerio_1.load)(html);
