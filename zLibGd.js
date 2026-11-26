@@ -459,11 +459,27 @@ this.readerOrigins = [
         const html = await this.text(readerUrl.href);
         const reader = (0, cheerio_1.load)(html);
         const csrf = reader('meta[name="csrf-token"]').attr('content');
-        const match = html.match(/\bconst\s+connectionInfo\s*=\s*JSON\.parse\('((?:\\.|[^'\\])*)'\)/);
-        if (!match || !csrf)
+        // Current Litera pages expose connectionInfo as JSON in #reader-bootstrap.
+        // Keep the previous inline declaration as a compatibility fallback.
+        let info;
+        const bootstrap = reader('#reader-bootstrap').text().trim();
+        if (bootstrap) {
+            try {
+                info = JSON.parse(bootstrap).connectionInfo;
+            }
+            catch { /* try legacy format below */ }
+        }
+        if (!info) {
+            const match = html.match(/\\bconst\\s+connectionInfo\\s*=\\s*JSON\\.parse\\('((?:\\\\.|[^'\\\\])*)'\\)/);
+            if (match) {
+                try {
+                    info = JSON.parse(JSON.parse('"' + match[1] + '"'));
+                }
+                catch { /* invalid legacy payload */ }
+            }
+        }
+        if (!info || !csrf)
             throw new Error('Reader initialization changed or a browser check is required.');
-        // Decode a JSON string literal; never evaluate page JavaScript.
-        const info = JSON.parse(JSON.parse('"' + match[1] + '"'));
         const session = {
             readerOrigin: readerUrl.origin,
             csrf, accessToken: '', fileToken: '', bookToken: '', fileId: '', opfUrl: '',
