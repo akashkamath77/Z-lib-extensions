@@ -5,11 +5,6 @@
   "description": "Experimental Z-Library OPDS bridge for Readest",
   "engines": { "node": ">=20" },
   "scripts": {
-    "start": "node local.js",
-    "dev": "wrangler dev",
-    "deploy": "wrangler deploy"
-  },
-  "devDependencies": {
-    "wrangler": "^4.0.0"
+    "start": "node local.js"
   }
 }
