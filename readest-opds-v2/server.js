@@ -311,7 +311,4 @@ const server = http.createServer(async (req, res) => {
   }
 });
 
-const port = Number(process.env.PORT || 3000);
-server.listen(port, "0.0.0.0", () => {
-  console.log("Readest Z-Library OPDS v2 listening on port " + port);
-});
+module.exports = { server };
