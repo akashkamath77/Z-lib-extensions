@@ -249,7 +249,7 @@ class ZLibGdPlugin {
       try { info = JSON.parse(bootstrap).connectionInfo; } catch { /* try legacy format below */ }
     }
     if (!info) {
-      const match = html.match(/\\bconst\\s+connectionInfo\\s*=\\s*JSON\\.parse\\('((?:\\\\.|[^'\\\\])*)'\\)/);
+      const match = html.match(/\bconst\s+connectionInfo\s*=\s*JSON\.parse\('((?:\\.|[^'\\])*)'\)/);
       if (match) {
         try { info = JSON.parse(JSON.parse('"' + match[1] + '"')); } catch { /* invalid legacy payload */ }
       }
