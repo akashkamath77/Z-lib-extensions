@@ -165,14 +165,19 @@ const categories = [
 class ZLibGdPlugin {
     constructor() {
         this.id = 'zLibGd';
-        this.name = 'Z-Library GD (experimental)';
-        this.site = 'https://z-lib.do';
-        this.version = '0.2.8';
-        this.icon = 'src/en/zLibGd/icon.png';
-        this.imageRequestInit = { headers: { Referer: 'https://reader.z-lib.do/' } };
-        this.readerOrigin = 'https://reader.z-lib.do';
-        this.bookOrigins = ['https://z-lib.gd', 'https://z-lib.do'];
-        this.readerOrigins = ['https://reader.z-lib.gd', 'https://reader.z-lib.do'];
+this.name = 'Z-Library GD';
+this.site = 'https://z-lib.gd';
+this.version = '0.2.9';
+this.icon = 'src/en/zLibGd/icon.png';
+this.imageRequestInit = {
+    headers: { Referer: 'https://reader.z-lib.gd/' }
+};
+this.readerOrigin = 'https://reader.z-lib.gd';
+this.bookOrigins = ['https://z-lib.gd', 'https://z-lib.do'];
+this.readerOrigins = [
+    'https://reader.z-lib.gd',
+    'https://reader.z-lib.do'
+];
         this.sessions = new Map();
         this.challengeCookies = new Map();
         this.filters = {
