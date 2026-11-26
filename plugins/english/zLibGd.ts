@@ -19,7 +19,7 @@ class ZLibGdPlugin {
   id = 'zLibGd';
   name = 'Z-Library GD (experimental)';
   site = 'https://z-lib.do';
-  version = '0.2.4';
+  version = '0.2.5';
   icon = 'src/en/zLibGd/icon.png';
   imageRequestInit = { headers: { Referer: 'https://reader.z-lib.do/' } };
   private readerOrigin = 'https://reader.z-lib.do';
@@ -241,10 +241,20 @@ class ZLibGdPlugin {
     const html = await this.text(readerUrl.href);
     const reader = load(html);
     const csrf = reader('meta[name="csrf-token"]').attr('content');
-    const match = html.match(/\bconst\s+connectionInfo\s*=\s*JSON\.parse\('((?:\\.|[^'\\])*)'\)/);
-    if (!match || !csrf) throw new Error('Reader initialization changed or a browser check is required.');
-    // Decode a JSON string literal; never evaluate page JavaScript.
-    const info = JSON.parse(JSON.parse('"' + match[1] + '"'));
+    // Current Litera pages expose connectionInfo as JSON in #reader-bootstrap.
+    // Keep the previous inline declaration as a compatibility fallback.
+    let info: Json | undefined;
+    const bootstrap = reader('#reader-bootstrap').text().trim();
+    if (bootstrap) {
+      try { info = JSON.parse(bootstrap).connectionInfo; } catch { /* try legacy format below */ }
+    }
+    if (!info) {
+      const match = html.match(/\\bconst\\s+connectionInfo\\s*=\\s*JSON\\.parse\\('((?:\\\\.|[^'\\\\])*)'\\)/);
+      if (match) {
+        try { info = JSON.parse(JSON.parse('"' + match[1] + '"')); } catch { /* invalid legacy payload */ }
+      }
+    }
+    if (!info || !csrf) throw new Error('Reader initialization changed or a browser check is required.');
     const session: Session = {
       readerOrigin: readerUrl.origin,
       csrf, accessToken: '', fileToken: '', bookToken: '', fileId: '', opfUrl: '',
