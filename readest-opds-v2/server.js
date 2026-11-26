@@ -141,8 +141,9 @@ function parseCards(html, base) {
   while ((match = cards.exec(html)) && books.length < MAX_RESULTS) {
     const body = match[2];
     const title = body.match(/<[^>]*slot=['"]title['"][^>]*>([\s\S]*?)<\/[\w:-]+>/i);
-    const image = body.match(/<img\b[^>]*(?:data-src|src)=['"]([^'"]+)['"][^>]*>/i);
-    add(attr(match[1], "href"), title ? title[1] : attr(match[1], "title"), image ? image[1] : attr(match[1], "cover"));
+    const image = body.match(/<z-cover\b[^>]*>[\s\S]*?<img\b([^>]*)>/i) || body.match(/<img\b([^>]*)>/i);
+    const imageSource = image ? (attr(image[1], "src") || attr(image[1], "data-src")) : "";
+    add(attr(match[1], "href"), title ? title[1] : attr(match[1], "title"), imageSource || attr(match[1], "cover"));
   }
 
   if (!books.length) {
@@ -160,12 +161,31 @@ function parseCards(html, base) {
 
 function parseDetails(html, path, base) {
   const title = cleanText(html.match(/<h1[^>]*class=['"][^'"]*book-title[^'"]*['"][^>]*>([\s\S]*?)<\/h1>/i)?.[1] || "");
-  const author = cleanText(html.match(/class=['"][^'"]*authors[^'"]*['"][^>]*>([\s\S]*?)<\//i)?.[1] || "");
-  const language = cleanText(html.match(/class=['"][^'"]*property_language[^'"]*['"][^>]*>[\s\S]*?class=['"][^'"]*property_value[^'"]*['"][^>]*>([\s\S]*?)<\//i)?.[1] || "");
-  const coverMatch = html.match(/<img[^>]+(?:src|data-src)=['"]([^'"]+)['"][^>]*>/i);
-  let cover = "";
-  try { if (coverMatch) cover = new URL(decode(coverMatch[1]), base).href; } catch {}
+  const author = cleanText(html.match(/<i[^>]*class=['"][^'"]*\bauthors\b[^'"]*['"][^>]*>([\s\S]*?)<\/i>/i)?.[1] || "");
+  const properties = {};
+  const propertyBlocks = /<div\b([^>]*class=['"][^'"]*\bbookProperty\b[^'"]*['"][^>]*)>([\s\S]*?)<\/div>\s*<\/div>/gi;
+  let propertyMatch;
+  while ((propertyMatch = propertyBlocks.exec(html))) {
+    const className = attr(propertyMatch[1], "class");
+    const key = (className.match(/\bproperty_([a-z0-9_-]+)/i) || [])[1] || "";
+    const label = cleanText(propertyMatch[2].match(/<div\b[^>]*class=['"][^'"]*\bproperty_label\b[^'"]*['"][^>]*>([\s\S]*?)<\/div>/i)?.[1] || "");
+    const value = cleanText(propertyMatch[2].match(/<div\b[^>]*class=['"][^'"]*\bproperty_value\b[^'"]*['"][^>]*>([\s\S]*?)<\/div>/i)?.[1] || "");
+    if (key && value) properties[key] = value;
+    if (label && value) properties[label.replace(/:\s*$/, "").toLowerCase().replace(/[^a-z0-9]+/g, "_")] = value;
+  }
 
+  const coverBlock = html.match(/<z-cover\b([^>]*)>([\s\S]*?)<\/z-cover>/i);
+  const coverImage = coverBlock && coverBlock[2].match(/<img\b([^>]*)>/i);
+  let cover = "";
+  const coverSource = coverImage ? (attr(coverImage[1], "src") || attr(coverImage[1], "data-src")) : "";
+  try {
+    if (coverSource) {
+      const candidate = new URL(coverSource, base);
+      if (candidate.protocol === "https:") cover = candidate.href;
+    }
+  } catch {}
+
+  const metaDescription = decode(attr((html.match(/<meta\b[^>]*name=['"]description['"][^>]*>/i) || [])[0] || "", "content"));
   const anchors = [...html.matchAll(/<a\b([^>]*)>([\s\S]*?)<\/a>/gi)];
   const downloadAnchor = anchors.find(m => /\baddDownloadedBook\b/i.test(attr(m[1], "class")));
   let download = "";
@@ -175,13 +195,28 @@ function parseDetails(html, path, base) {
       if (candidate.origin === new URL(base).origin && /^\/dl\/[A-Za-z0-9_-]+$/.test(candidate.pathname)) download = candidate.pathname;
     } catch {}
   }
-  let format = "";
-  if (download) {
-    const hints = downloadAnchor[1] + " " + downloadAnchor[2] + " " + download;
-    format = ["epub", "pdf", "mobi", "azw3", "fb2", "djvu", "txt", "docx", "rtf", "html", "cbz", "cbr"]
-      .find(x => new RegExp("(?:^|[^a-z0-9])" + x + "(?:$|[^a-z0-9])", "i").test(hints)) || "";
-  }
-  return { title, author, language, cover, download, format, path };
+
+  const format = cleanText(html.match(/<span\b[^>]*class=['"][^'"]*book-property__extension[^'"]*['"][^>]*>([\s\S]*?)<\/span>/i)?.[1] || "").toLowerCase();
+  const downloadText = downloadAnchor ? cleanText(downloadAnchor[2]) : "";
+  const fileSize = (downloadText.match(/\b\d+(?:\.\d+)?\s*(?:KB|MB|GB)\b/i) || [])[0] || (properties.file || "").match(/\b\d+(?:\.\d+)?\s*(?:KB|MB|GB)\b/i)?.[0] || "";
+  const coverId = coverBlock ? attr(coverBlock[1], "id") : "";
+  const isbn = coverBlock ? attr(coverBlock[1], "isbn") : "";
+  const language = properties.language || "";
+  const description = cleanText(html.match(/<(?:div|section)[^>]*class=['"][^'"]*(?:book-description|book__description|description-text)[^'"]*['"][^>]*>([\s\S]*?)<\/(?:div|section)>/i)?.[1] || "");
+
+  return {
+    title, author, language, cover, download, format, fileSize, path, properties,
+    publisher: properties.publisher || "",
+    year: properties.year || "",
+    edition: properties.edition || "",
+    pages: properties.pages || "",
+    categories: properties.categories || "",
+    isbn: properties.isbn_13 || properties.isbn_10 || isbn || "",
+    isbn10: properties.isbn_10 || "",
+    isbn13: properties.isbn_13 || isbn || "",
+    bookId: coverId,
+    description: description || metaDescription
+  };
 }
 
 function feed(title, self, entries, extra = "") {
@@ -273,14 +308,38 @@ const server = http.createServer(async (req, res) => {
         ? '<link rel="http://opds-spec.org/acquisition" href="' + xml(origin + "/opds/download?path=" + encodeURIComponent(book.download) + "&key=" + encodeURIComponent(key)) +
           '" type="' + formatMime(book.format) + '" title="Download ' + xml(book.format ? book.format.toUpperCase() : "book") + '"/>'
         : "";
-      const content = [book.author, book.language].filter(Boolean).join(" · ");
+      const p = book.properties || {};
+      const metadata = [
+        book.publisher && "Publisher: " + book.publisher,
+        book.year && "Year: " + book.year,
+        book.edition && "Edition: " + book.edition,
+        book.language && "Language: " + book.language,
+        book.pages && "Pages: " + book.pages,
+        book.categories && "Categories: " + book.categories,
+        book.isbn10 && "ISBN-10: " + book.isbn10,
+        book.isbn13 && "ISBN-13: " + book.isbn13,
+        book.format && "Format: " + book.format.toUpperCase(),
+        book.fileSize && "File size: " + book.fileSize
+      ].filter(Boolean).join("\n");
+      const summary = book.description || metadata;
+      const imageLinks = book.cover
+        ? '<link rel="http://opds-spec.org/image" href="' + xml(book.cover) + '" type="image/jpeg"/>' +
+          '<link rel="http://opds-spec.org/image/thumbnail" href="' + xml(book.cover) + '" type="image/jpeg"/>'
+        : "";
       const body = '<?xml version="1.0" encoding="UTF-8"?>' +
-        '<feed xmlns="http://www.w3.org/2005/Atom"><id>' + xml(base + path) + '</id><title>' + xml(book.title) +
+        '<feed xmlns="http://www.w3.org/2005/Atom" xmlns:dc="http://purl.org/dc/elements/1.1/"><id>' + xml(base + path) + '</id><title>' + xml(book.title) +
         '</title><updated>' + new Date().toISOString() + '</updated><entry><title>' + xml(book.title) + '</title><id>' + xml(base + path) +
         '</id><updated>' + new Date().toISOString() + '</updated>' +
         (book.author ? '<author><name>' + xml(book.author) + '</name></author>' : "") +
-        (book.cover ? '<link rel="http://opds-spec.org/image" href="' + xml(book.cover) + '" type="image/jpeg"/>' : "") +
-        acquisition + '<content type="text">' + xml(content) + '</content></entry></feed>';
+        (book.publisher ? '<dc:publisher>' + xml(book.publisher) + '</dc:publisher>' : "") +
+        (book.year ? '<dc:date>' + xml(book.year) + '</dc:date>' : "") +
+        (book.language ? '<dc:language>' + xml(book.language) + '</dc:language>' : "") +
+        (book.isbn ? '<dc:identifier>' + xml(book.isbn) + '</dc:identifier>' : "") +
+        (book.categories ? book.categories.split(/[,;]+/).map(x => x.trim()).filter(Boolean).map(x => '<dc:subject>' + xml(x) + '</dc:subject>').join("") : "") +
+        imageLinks + acquisition +
+        (summary ? '<summary type="text">' + xml(summary) + '</summary>' : "") +
+        (metadata ? '<content type="text">' + xml(metadata) + '</content>' : "") +
+        '</entry></feed>';
       res.writeHead(200, xmlHeaders);
       return res.end(body);
     }
