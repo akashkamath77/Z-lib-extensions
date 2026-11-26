@@ -731,8 +731,10 @@ this.readerOrigins = [
         await rewriteLinks($, $.root(), entry.url, '');
 
         // Resolve EPUB cross-file references as local anchors inside this chapter.
-        while (pending.length && linkedHtml.length < 40) {
+        let processedLinked = 0;
+        while (pending.length && processedLinked < 40) {
             const target = pending.shift();
+            processedLinked++;
             let doc;
             try {
                 doc = (0, cheerio_1.load)(await this.xml(session, target.url), { xmlMode: true });
